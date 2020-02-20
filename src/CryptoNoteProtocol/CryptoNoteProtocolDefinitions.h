@@ -1,6 +1,8 @@
-// Copyright (c) 2011-2016 The Cryptonote developers
-// Distributed under the MIT/X11 software license, see the accompanying
-// file COPYING or http://www.opensource.org/licenses/mit-license.php.
+// Copyright (c) 2012-2017, The CryptoNote developers, The Bytecoin developers
+// Copyright (c) 2014-2018, The Monero Project
+// Copyright (c) 2018, The TurtleCoin Developers
+//
+// Please see the included LICENSE file for more information.
 
 #pragma once
 
@@ -10,7 +12,7 @@
 // ISerializer-based serialization
 #include "Serialization/ISerializer.h"
 #include "Serialization/SerializationOverloads.h"
-#include "CryptoNoteCore/CryptoNoteSerialization.h"
+#include "Serialization/CryptoNoteSerialization.h"
 
 namespace CryptoNote
 {
@@ -20,65 +22,18 @@ namespace CryptoNote
   /************************************************************************/
   /*                                                                      */
   /************************************************************************/
-  struct block_complete_entry
-  {
-    std::string block;
-    std::vector<std::string> txs;
 
-    void serialize(ISerializer& s) {
-      KV_MEMBER(block);
-      KV_MEMBER(txs);
-    }
-
+  //just to keep backward compatibility with BlockCompleteEntry serialization
+  struct RawBlockLegacy {
+    BinaryArray blockTemplate;
+    std::vector<BinaryArray> transactions;
   };
 
-  struct BlockFullInfo : public block_complete_entry
-  {
-    Crypto::Hash block_id;
-
-    void serialize(ISerializer& s) {
-      KV_MEMBER(block_id);
-      KV_MEMBER(block);
-      KV_MEMBER(txs);
-    }
-  };
-
-  struct TransactionPrefixInfo {
-    Crypto::Hash txHash;
-    TransactionPrefix txPrefix;
-
-    void serialize(ISerializer& s) {
-      KV_MEMBER(txHash);
-      KV_MEMBER(txPrefix);
-    }
-  };
-
-  struct BlockShortInfo {
-    Crypto::Hash blockId;
-    std::string block;
-    std::vector<TransactionPrefixInfo> txPrefixes;
-
-    void serialize(ISerializer& s) {
-      KV_MEMBER(blockId);
-      KV_MEMBER(block);
-      KV_MEMBER(txPrefixes);
-    }
-  };
-
-  /************************************************************************/
-  /*                                                                      */
-  /************************************************************************/
   struct NOTIFY_NEW_BLOCK_request
   {
-    block_complete_entry b;
+    RawBlockLegacy block;
     uint32_t current_blockchain_height;
     uint32_t hop;
-
-    void serialize(ISerializer& s) {
-      KV_MEMBER(b)
-      KV_MEMBER(current_blockchain_height)
-      KV_MEMBER(hop)
-    }
   };
 
   struct NOTIFY_NEW_BLOCK
@@ -92,12 +47,7 @@ namespace CryptoNote
   /************************************************************************/
   struct NOTIFY_NEW_TRANSACTIONS_request
   {
-    std::vector<std::string> txs;
-
-    void serialize(ISerializer& s) {
-      KV_MEMBER(txs);
-    }
-
+    std::vector<BinaryArray> txs;
   };
 
   struct NOTIFY_NEW_TRANSACTIONS
@@ -129,17 +79,9 @@ namespace CryptoNote
   struct NOTIFY_RESPONSE_GET_OBJECTS_request
   {
     std::vector<std::string> txs;
-    std::vector<block_complete_entry> blocks;
+    std::vector<RawBlockLegacy> blocks;
     std::vector<Crypto::Hash> missed_ids;
     uint32_t current_blockchain_height;
-
-    void serialize(ISerializer& s) {
-      KV_MEMBER(txs)
-      KV_MEMBER(blocks)
-      serializeAsBinary(missed_ids, "missed_ids", s);
-      KV_MEMBER(current_blockchain_height)
-    }
-
   };
 
   struct NOTIFY_RESPONSE_GET_OBJECTS
@@ -195,5 +137,30 @@ namespace CryptoNote
   struct NOTIFY_REQUEST_TX_POOL {
     const static int ID = BC_COMMANDS_POOL_BASE + 8;
     typedef NOTIFY_REQUEST_TX_POOL_request request;
+  };
+
+  /************************************************************************/
+  /*                                                                      */
+  /************************************************************************/
+  struct NOTIFY_NEW_LITE_BLOCK_request {
+    BinaryArray blockTemplate;
+    uint32_t current_blockchain_height;
+    uint32_t hop;
+  };
+
+  struct NOTIFY_NEW_LITE_BLOCK {
+    const static int ID = BC_COMMANDS_POOL_BASE + 9;
+    typedef NOTIFY_NEW_LITE_BLOCK_request request;
+  };
+
+  struct NOTIFY_MISSING_TXS_request {
+    Crypto::Hash blockHash;
+    uint32_t current_blockchain_height;
+    std::vector<Crypto::Hash> missing_txs;
+  };
+
+  struct NOTIFY_MISSING_TXS {
+    const static int ID = BC_COMMANDS_POOL_BASE + 10;
+    typedef NOTIFY_MISSING_TXS_request request;
   };
 }

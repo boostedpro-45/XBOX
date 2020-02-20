@@ -1,18 +1,32 @@
-// Copyright (c) 2011-2016 The Cryptonote developers
-// Distributed under the MIT/X11 software license, see the accompanying
-// file COPYING or http://www.opensource.org/licenses/mit-license.php.
+// Copyright (c) 2012-2017, The CryptoNote developers, The Bytecoin developers
+//
+// This file is part of Bytecoin.
+//
+// Bytecoin is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Lesser General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// Bytecoin is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU Lesser General Public License for more details.
+//
+// You should have received a copy of the GNU Lesser General Public License
+// along with Bytecoin.  If not, see <http://www.gnu.org/licenses/>.
 
 #include "ITransaction.h"
 #include "TransactionApiExtra.h"
 #include "TransactionUtils.h"
 
 #include "Account.h"
-#include "CryptoNoteCore/CryptoNoteTools.h"
-#include "CryptoNoteConfig.h"
+#include "Common/CryptoNoteTools.h"
+#include <config/CryptoNoteConfig.h>
 
 #include <boost/optional.hpp>
 #include <numeric>
 #include <unordered_set>
+#include <memory>
 
 using namespace Crypto;
 
@@ -56,22 +70,15 @@ namespace CryptoNote {
     virtual uint64_t getInputTotalAmount() const override;
     virtual TransactionTypes::InputType getInputType(size_t index) const override;
     virtual void getInput(size_t index, KeyInput& input) const override;
-    virtual void getInput(size_t index, MultisignatureInput& input) const override;
 
     // outputs
     virtual size_t getOutputCount() const override;
     virtual uint64_t getOutputTotalAmount() const override;
     virtual TransactionTypes::OutputType getOutputType(size_t index) const override;
     virtual void getOutput(size_t index, KeyOutput& output, uint64_t& amount) const override;
-    virtual void getOutput(size_t index, MultisignatureOutput& output, uint64_t& amount) const override;
 
     virtual size_t getRequiredSignaturesCount(size_t index) const override;
     virtual bool findOutputsToAccount(const AccountPublicAddress& addr, const SecretKey& viewSecretKey, std::vector<uint32_t>& outs, uint64_t& outputAmount) const override;
-
-    // various checks
-    virtual bool validateInputs() const override;
-    virtual bool validateOutputs() const override;
-    virtual bool validateSignatures() const override;
 
     // get serialized transaction
     virtual BinaryArray getTransactionData() const override;
@@ -79,28 +86,17 @@ namespace CryptoNote {
     // ITransactionWriter
 
     virtual void setUnlockTime(uint64_t unlockTime) override;
-    virtual void setPaymentId(const Hash& hash) override;
     virtual void setExtraNonce(const BinaryArray& nonce) override;
     virtual void appendExtra(const BinaryArray& extraData) override;
 
     // Inputs/Outputs 
     virtual size_t addInput(const KeyInput& input) override;
-    virtual size_t addInput(const MultisignatureInput& input) override;
     virtual size_t addInput(const AccountKeys& senderKeys, const TransactionTypes::InputKeyInfo& info, KeyPair& ephKeys) override;
 
     virtual size_t addOutput(uint64_t amount, const AccountPublicAddress& to) override;
-    virtual size_t addOutput(uint64_t amount, const std::vector<AccountPublicAddress>& to, uint32_t requiredSignatures) override;
     virtual size_t addOutput(uint64_t amount, const KeyOutput& out) override;
-    virtual size_t addOutput(uint64_t amount, const MultisignatureOutput& out) override;
 
     virtual void signInputKey(size_t input, const TransactionTypes::InputKeyInfo& info, const KeyPair& ephKeys) override;
-    virtual void signInputMultisignature(size_t input, const PublicKey& sourceTransactionKey, size_t outputIndex, const AccountKeys& accountKeys) override;
-    virtual void signInputMultisignature(size_t input, const KeyPair& ephemeralKeys) override;
-
-
-    // secret key
-    virtual bool getTransactionSecretKey(SecretKey& key) const override;
-    virtual void setTransactionSecretKey(const SecretKey& key) override;
 
   private:
 
@@ -189,7 +185,7 @@ namespace CryptoNote {
   }
 
   PublicKey TransactionImpl::getTransactionPublicKey() const {
-    PublicKey pk(NULL_PUBLIC_KEY);
+    PublicKey pk(Constants::NULL_PUBLIC_KEY);
     extra.getPublicKey(pk);
     return pk;
   }
@@ -202,29 +198,6 @@ namespace CryptoNote {
     checkIfSigning();
     transaction.unlockTime = unlockTime;
     invalidateHash();
-  }
-
-  bool TransactionImpl::getTransactionSecretKey(SecretKey& key) const {
-    if (!secretKey) {
-      return false;
-    }
-    key = reinterpret_cast<const SecretKey&>(secretKey.get());
-    return true;
-  }
-
-  void TransactionImpl::setTransactionSecretKey(const SecretKey& key) {
-    const auto& sk = reinterpret_cast<const SecretKey&>(key);
-    PublicKey pk;
-    PublicKey txPubKey;
-
-    secret_key_to_public_key(sk, pk);
-    extra.getPublicKey(txPubKey);
-
-    if (txPubKey != pk) {
-      throw std::runtime_error("Secret transaction key does not match public key");
-    }
-
-    secretKey = key;
   }
 
   size_t TransactionImpl::addInput(const KeyInput& input) {
@@ -255,13 +228,6 @@ namespace CryptoNote {
     return addInput(input);
   }
 
-  size_t TransactionImpl::addInput(const MultisignatureInput& input) {
-    checkIfSigning();
-    transaction.inputs.push_back(input);
-    invalidateHash();
-    return transaction.inputs.size() - 1;
-  }
-
   size_t TransactionImpl::addOutput(uint64_t amount, const AccountPublicAddress& to) {
     checkIfSigning();
 
@@ -274,36 +240,7 @@ namespace CryptoNote {
     return transaction.outputs.size() - 1;
   }
 
-  size_t TransactionImpl::addOutput(uint64_t amount, const std::vector<AccountPublicAddress>& to, uint32_t requiredSignatures) {
-    checkIfSigning();
-
-    const auto& txKey = txSecretKey();
-    size_t outputIndex = transaction.outputs.size();
-    MultisignatureOutput outMsig;
-    outMsig.requiredSignatureCount = requiredSignatures;
-    outMsig.keys.resize(to.size());
-    
-    for (size_t i = 0; i < to.size(); ++i) {
-      derivePublicKey(to[i], txKey, outputIndex, outMsig.keys[i]);
-    }
-
-    TransactionOutput out = { amount, outMsig };
-    transaction.outputs.emplace_back(out);
-    invalidateHash();
-
-    return outputIndex;
-  }
-
   size_t TransactionImpl::addOutput(uint64_t amount, const KeyOutput& out) {
-    checkIfSigning();
-    size_t outputIndex = transaction.outputs.size();
-    TransactionOutput realOut = { amount, out };
-    transaction.outputs.emplace_back(realOut);
-    invalidateHash();
-    return outputIndex;
-  }
-
-  size_t TransactionImpl::addOutput(uint64_t amount, const MultisignatureOutput& out) {
     checkIfSigning();
     size_t outputIndex = transaction.outputs.size();
     TransactionOutput realOut = { amount, out };
@@ -316,59 +253,22 @@ namespace CryptoNote {
     const auto& input = boost::get<KeyInput>(getInputChecked(transaction, index, TransactionTypes::InputType::Key));
     Hash prefixHash = getTransactionPrefixHash();
 
-    std::vector<Signature> signatures;
-    std::vector<const PublicKey*> keysPtrs;
+    std::vector<PublicKey> publicKeys;
 
     for (const auto& o : info.outputs) {
-      keysPtrs.push_back(reinterpret_cast<const PublicKey*>(&o.targetKey));
+        publicKeys.push_back(o.targetKey);
     }
 
-    signatures.resize(keysPtrs.size());
-
-    generate_ring_signature(
-      reinterpret_cast<const Hash&>(prefixHash),
-      reinterpret_cast<const KeyImage&>(input.keyImage),
-      keysPtrs,
-      reinterpret_cast<const SecretKey&>(ephKeys.secretKey),
-      info.realOutput.transactionIndex,
-      signatures.data());
+    const auto [success, signatures] = crypto_ops::generateRingSignatures(
+        prefixHash,
+        input.keyImage,
+        publicKeys,
+        ephKeys.secretKey,
+        info.realOutput.transactionIndex
+    );
 
     getSignatures(index) = signatures;
-    invalidateHash();
-  }
 
-  void TransactionImpl::signInputMultisignature(size_t index, const PublicKey& sourceTransactionKey, size_t outputIndex, const AccountKeys& accountKeys) {
-    KeyDerivation derivation;
-    PublicKey ephemeralPublicKey;
-    SecretKey ephemeralSecretKey;
-
-    generate_key_derivation(
-      reinterpret_cast<const PublicKey&>(sourceTransactionKey),
-      reinterpret_cast<const SecretKey&>(accountKeys.viewSecretKey),
-      derivation);
-
-    derive_public_key(derivation, outputIndex,
-      reinterpret_cast<const PublicKey&>(accountKeys.address.spendPublicKey), ephemeralPublicKey);
-    derive_secret_key(derivation, outputIndex,
-      reinterpret_cast<const SecretKey&>(accountKeys.spendSecretKey), ephemeralSecretKey);
-
-    Signature signature;
-    auto txPrefixHash = getTransactionPrefixHash();
-
-    generate_signature(reinterpret_cast<const Hash&>(txPrefixHash),
-      ephemeralPublicKey, ephemeralSecretKey, signature);
-
-    getSignatures(index).push_back(signature);
-    invalidateHash();
-  }
-
-  void TransactionImpl::signInputMultisignature(size_t index, const KeyPair& ephemeralKeys) {
-    Signature signature;
-    auto txPrefixHash = getTransactionPrefixHash();
-
-    generate_signature(txPrefixHash, ephemeralKeys.publicKey, ephemeralKeys.secretKey, signature);
-
-    getSignatures(index).push_back(signature);
     invalidateHash();
   }
 
@@ -387,13 +287,6 @@ namespace CryptoNote {
 
   BinaryArray TransactionImpl::getTransactionData() const {
     return toBinaryArray(transaction);
-  }
-
-  void TransactionImpl::setPaymentId(const Hash& hash) {
-    checkIfSigning();
-    BinaryArray paymentIdBlob;
-    setPaymentIdToTransactionExtraNonce(paymentIdBlob, reinterpret_cast<const Hash&>(hash));
-    setExtraNonce(paymentIdBlob);
   }
 
   bool TransactionImpl::getPaymentId(Hash& hash) const {
@@ -452,10 +345,6 @@ namespace CryptoNote {
     input = boost::get<KeyInput>(getInputChecked(transaction, index, TransactionTypes::InputType::Key));
   }
 
-  void TransactionImpl::getInput(size_t index, MultisignatureInput& input) const {
-    input = boost::get<MultisignatureInput>(getInputChecked(transaction, index, TransactionTypes::InputType::Multisignature));
-  }
-
   size_t TransactionImpl::getOutputCount() const {
     return transaction.outputs.size();
   }
@@ -475,45 +364,11 @@ namespace CryptoNote {
     amount = out.amount;
   }
 
-  void TransactionImpl::getOutput(size_t index, MultisignatureOutput& output, uint64_t& amount) const {
-    const auto& out = getOutputChecked(transaction, index, TransactionTypes::OutputType::Multisignature);
-    output = boost::get<MultisignatureOutput>(out.target);
-    amount = out.amount;
-  }
-
   bool TransactionImpl::findOutputsToAccount(const AccountPublicAddress& addr, const SecretKey& viewSecretKey, std::vector<uint32_t>& out, uint64_t& amount) const {
     return ::CryptoNote::findOutputsToAccount(transaction, addr, viewSecretKey, out, amount);
   }
 
   size_t TransactionImpl::getRequiredSignaturesCount(size_t index) const {
     return ::getRequiredSignaturesCount(getInputChecked(transaction, index));
-  }
-
-  bool TransactionImpl::validateInputs() const {
-    return
-      check_inputs_types_supported(transaction) &&
-      check_inputs_overflow(transaction) &&
-      checkInputsKeyimagesDiff(transaction) &&
-      checkMultisignatureInputsDiff(transaction);
-  }
-
-  bool TransactionImpl::validateOutputs() const {
-    return
-      check_outs_valid(transaction) &&
-      check_outs_overflow(transaction);
-  }
-
-  bool TransactionImpl::validateSignatures() const {
-    if (transaction.signatures.size() < transaction.inputs.size()) {
-      return false;
-    }
-
-    for (size_t i = 0; i < transaction.inputs.size(); ++i) {
-      if (getRequiredSignaturesCount(i) > transaction.signatures[i].size()) {
-        return false;
-      }
-    }
-
-    return true;
   }
 }

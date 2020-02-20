@@ -1,30 +1,34 @@
-// Copyright (c) 2011-2016 The Cryptonote developers
-// Distributed under the MIT/X11 software license, see the accompanying
-// file COPYING or http://www.opensource.org/licenses/mit-license.php.
+// Copyright (c) 2012-2017, The CryptoNote developers, The Bytecoin developers
+// Copyright (c) 2018, The TurtleCoin Developers
+//
+// Please see the included LICENSE file for more information.
 
 #pragma once
+
+#include "version.h"
 
 #include <cstdint>
 #include <string>
 
 namespace CryptoNote {
 
-struct MiningConfig {
-  MiningConfig();
+struct MiningConfig
+{
+    MiningConfig();
 
-  void parse(int argc, char** argv);
-  void printHelp();
+    void parse(int argc, char** argv);
 
-  std::string miningAddress;
-  std::string daemonHost;
-  uint16_t daemonPort;
-  size_t threadCount;
-  size_t scanPeriod;
-  uint8_t logLevel;
-  size_t blocksLimit;
-  uint64_t firstBlockTimestamp;
-  int64_t blockTimestampInterval;
-  bool help;
+    std::string miningAddress;
+    std::string daemonAddress;
+    std::string daemonHost;
+    uint16_t daemonPort;
+    size_t threadCount;
+    size_t scanPeriod;
+    size_t blocksLimit;
+    uint64_t firstBlockTimestamp;
+    int64_t blockTimestampInterval;
+    bool help;
+    bool version;
 };
 
 } //namespace CryptoNote

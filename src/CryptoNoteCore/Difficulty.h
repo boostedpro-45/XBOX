@@ -1,17 +1,20 @@
-// Copyright (c) 2011-2016 The Cryptonote developers
-// Distributed under the MIT/X11 software license, see the accompanying
-// file COPYING or http://www.opensource.org/licenses/mit-license.php.
+// Copyright (c) 2018, The TurtleCoin Developers
+// 
+// Please see the included LICENSE file for more information.
 
 #pragma once
 
-#include <cstdint>
+#include <stdint.h>
 #include <vector>
 
-#include "crypto/hash.h"
+uint64_t nextDifficultyV5(std::vector<uint64_t> timestamps, std::vector<uint64_t> cumulativeDifficulties);
 
-namespace CryptoNote
+uint64_t nextDifficultyV4(std::vector<uint64_t> timestamps, std::vector<uint64_t> cumulativeDifficulties);
+
+uint64_t nextDifficultyV3(std::vector<uint64_t> timestamps, std::vector<uint64_t> cumulativeDifficulties);
+
+template <typename T>
+T clamp(const T& n, const T& lower, const T& upper)
 {
-    typedef std::uint64_t difficulty_type;
-
-    bool check_hash(const Crypto::Hash &hash, difficulty_type difficulty);
+    return std::max(lower, std::min(n, upper));
 }

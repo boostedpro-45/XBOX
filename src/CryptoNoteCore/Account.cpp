@@ -1,9 +1,12 @@
-// Copyright (c) 2011-2016 The Cryptonote developers
-// Distributed under the MIT/X11 software license, see the accompanying
-// file COPYING or http://www.opensource.org/licenses/mit-license.php.
+// Copyright (c) 2012-2017, The CryptoNote developers, The Bytecoin developers
+// Copyright (c) 2014-2018, The Monero Project
+// Copyright (c) 2018, The TurtleCoin Developers
+// 
+// Please see the included LICENSE file for more information.
 
 #include "Account.h"
-#include "CryptoNoteSerialization.h"
+#include "Serialization/CryptoNoteSerialization.h"
+#include "crypto/keccak.h"
 
 namespace CryptoNote {
 //-----------------------------------------------------------------
@@ -16,17 +19,20 @@ void AccountBase::setNull() {
 }
 //-----------------------------------------------------------------
 void AccountBase::generate() {
+
   Crypto::generate_keys(m_keys.address.spendPublicKey, m_keys.spendSecretKey);
-  Crypto::generate_keys(m_keys.address.viewPublicKey, m_keys.viewSecretKey);
+
+  /* We derive the view secret key by taking our spend secret key, hashing
+     with keccak-256, and then using this as the seed to generate a new set
+     of keys - the public and private view keys. See generate_deterministic_keys */
+
+  Crypto::crypto_ops::generateViewFromSpend(m_keys.spendSecretKey, m_keys.viewSecretKey, m_keys.address.viewPublicKey);
   m_creation_timestamp = time(NULL);
+
 }
 //-----------------------------------------------------------------
 const AccountKeys &AccountBase::getAccountKeys() const {
   return m_keys;
-}
-
-void AccountBase::setAccountKeys(const AccountKeys &keys) {
-  m_keys = keys;
 }
 //-----------------------------------------------------------------
 

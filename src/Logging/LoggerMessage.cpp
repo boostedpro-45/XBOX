@@ -1,12 +1,25 @@
-// Copyright (c) 2011-2016 The Cryptonote developers
-// Distributed under the MIT/X11 software license, see the accompanying
-// file COPYING or http://www.opensource.org/licenses/mit-license.php.
+// Copyright (c) 2012-2017, The CryptoNote developers, The Bytecoin developers
+//
+// This file is part of Bytecoin.
+//
+// Bytecoin is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Lesser General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// Bytecoin is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU Lesser General Public License for more details.
+//
+// You should have received a copy of the GNU Lesser General Public License
+// along with Bytecoin.  If not, see <http://www.gnu.org/licenses/>.
 
 #include "LoggerMessage.h"
 
 namespace Logging {
 
-LoggerMessage::LoggerMessage(ILogger& logger, const std::string& category, Level level, const std::string& color)
+LoggerMessage::LoggerMessage(std::shared_ptr<ILogger> logger, const std::string& category, Level level, const std::string& color)
   : std::ostream(this)
   , std::streambuf()
   , logger(logger)
@@ -67,7 +80,8 @@ LoggerMessage::LoggerMessage(LoggerMessage&& other)
     char *_Gfirst = eback();
     char *_Gnext = gptr();
     char *_Gend = egptr();
-
+    if (_Pnext) {}
+    
     setp(other.pbase(), other.epptr());
     other.setp(_Pfirst, _Pend);
 
@@ -85,10 +99,16 @@ LoggerMessage::LoggerMessage(LoggerMessage&& other)
 #endif
 
 int LoggerMessage::sync() {
-  logger(category, logLevel, timestamp, message);
+  (*logger)(category, logLevel, timestamp, message);
   gotText = false;
   message = DEFAULT;
   return 0;
+}
+
+std::streamsize LoggerMessage::xsputn(const char* s, std::streamsize n) {
+  gotText = true;
+  message.append(s, n);
+  return n;
 }
 
 int LoggerMessage::overflow(int c) {

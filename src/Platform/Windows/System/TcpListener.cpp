@@ -1,9 +1,11 @@
-// Copyright (c) 2011-2016 The Cryptonote developers
-// Distributed under the MIT/X11 software license, see the accompanying
-// file COPYING or http://www.opensource.org/licenses/mit-license.php.
+// Copyright (c) 2012-2017, The CryptoNote developers, The Bytecoin developers
+// Copyright (c) 2018-2019, The TurtleCoin Developers
+// 
+// Please see the included LICENSE file for more information.
 
 #include "TcpListener.h"
 #include <cassert>
+#include <stdexcept>
 #ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN
 #endif
@@ -169,6 +171,15 @@ TcpConnection TcpListener::accept() {
             }
           }
         } else {
+          if (context2.interrupted) {
+            if (closesocket(connection) != 0) {
+              throw std::runtime_error("TcpConnector::connect, closesocket failed, " + errorMessage(WSAGetLastError()));
+            }
+            else {
+              throw InterruptedException();
+            }
+          }
+
           assert(transferred == 0);
           assert(flags == 0);
           if (setsockopt(connection, SOL_SOCKET, SO_UPDATE_ACCEPT_CONTEXT, reinterpret_cast<char*>(&listener), sizeof listener) != 0) {

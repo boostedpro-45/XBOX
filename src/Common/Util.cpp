@@ -1,15 +1,33 @@
-// Copyright (c) 2011-2016 The Cryptonote developers
-// Distributed under the MIT/X11 software license, see the accompanying
-// file COPYING or http://www.opensource.org/licenses/mit-license.php.
+// Copyright (c) 2012-2017, The CryptoNote developers, The Bytecoin developers
+//
+// This file is part of Bytecoin.
+//
+// Bytecoin is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Lesser General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// Bytecoin is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU Lesser General Public License for more details.
+//
+// You should have received a copy of the GNU Lesser General Public License
+// along with Bytecoin.  If not, see <http://www.gnu.org/licenses/>.
 
 #include "Util.h"
+
 #include <cstdio>
+#include <cstring>
 
-#include <boost/filesystem.hpp>
+#include <Common/FileSystemShim.h>
 
-#include "CryptoNoteConfig.h"
+#include <config/CryptoNoteConfig.h>
 
 #ifdef WIN32
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
 #include <windows.h>
 #include <shlobj.h>
 #include <strsafe.h>
@@ -218,7 +236,7 @@ namespace Tools
 
       // Include service pack (if any) and build number.
 
-      if( strlen(osvi.szCSDVersion) > 0 )
+      if(std::strlen(osvi.szCSDVersion) > 0 )
       {
         StringCchCat(pszOS, BUFSIZE, TEXT(" ") );
         StringCchCat(pszOS, BUFSIZE, osvi.szCSDVersion);
@@ -272,7 +290,6 @@ std::string get_nix_version_display_string()
 #ifdef WIN32
   std::string get_special_folder_path(int nfolder, bool iscreate)
   {
-    namespace fs = boost::filesystem;
     char psz_path[MAX_PATH] = "";
 
     if(SHGetSpecialFolderPathA(NULL, psz_path, nfolder, iscreate)) {
@@ -285,7 +302,6 @@ std::string get_nix_version_display_string()
 
   std::string getDefaultDataDirectory()
   {
-    //namespace fs = boost::filesystem;
     // Windows < Vista: C:\Documents and Settings\Username\Application Data\CRYPTONOTE_NAME
     // Windows >= Vista: C:\Users\Username\AppData\Roaming\CRYPTONOTE_NAME
     // Mac: ~/Library/Application Support/CRYPTONOTE_NAME
@@ -297,7 +313,7 @@ std::string get_nix_version_display_string()
 #else
     std::string pathRet;
     char* pszHome = getenv("HOME");
-    if (pszHome == NULL || strlen(pszHome) == 0)
+    if (pszHome == NULL || std::strlen(pszHome) == 0)
       pathRet = "/";
     else
       pathRet = pszHome;
@@ -316,39 +332,14 @@ std::string get_nix_version_display_string()
 
   bool create_directories_if_necessary(const std::string& path)
   {
-    namespace fs = boost::filesystem;
-    boost::system::error_code ec;
-    fs::path fs_path(path);
-    if (fs::is_directory(fs_path, ec)) {
-      return true;
-    }
-
-    return fs::create_directories(fs_path, ec);
+      std::error_code e;
+      fs::create_directories(path, e);
+      return e.value() == 0;
   }
 
-  std::error_code replace_file(const std::string& replacement_name, const std::string& replaced_name)
+  bool directoryExists(const std::string &path)
   {
-    int code;
-#if defined(WIN32)
-    // Maximizing chances for success
-    DWORD attributes = ::GetFileAttributes(replaced_name.c_str());
-    if (INVALID_FILE_ATTRIBUTES != attributes)
-    {
-      ::SetFileAttributes(replaced_name.c_str(), attributes & (~FILE_ATTRIBUTE_READONLY));
-    }
-
-    bool ok = 0 != ::MoveFileEx(replacement_name.c_str(), replaced_name.c_str(), MOVEFILE_REPLACE_EXISTING);
-    code = ok ? 0 : static_cast<int>(::GetLastError());
-#else
-    bool ok = 0 == std::rename(replacement_name.c_str(), replaced_name.c_str());
-    code = ok ? 0 : errno;
-#endif
-    return std::error_code(code, std::system_category());
+      std::error_code e;
+      return fs::is_directory(path, e);
   }
-
-  bool directoryExists(const std::string& path) {
-    boost::system::error_code ec;
-    return boost::filesystem::is_directory(path, ec);
-  }
-
 }

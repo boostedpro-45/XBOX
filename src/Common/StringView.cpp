@@ -1,6 +1,19 @@
-// Copyright (c) 2011-2016 The Cryptonote developers
-// Distributed under the MIT/X11 software license, see the accompanying
-// file COPYING or http://www.opensource.org/licenses/mit-license.php.
+// Copyright (c) 2012-2017, The CryptoNote developers, The Bytecoin developers
+//
+// This file is part of Bytecoin.
+//
+// Bytecoin is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Lesser General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// Bytecoin is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU Lesser General Public License for more details.
+//
+// You should have received a copy of the GNU Lesser General Public License
+// along with Bytecoin.  If not, see <http://www.gnu.org/licenses/>.
 
 #include "StringView.h"
 #include <limits>
@@ -56,11 +69,6 @@ StringView::Size StringView::getSize() const {
 bool StringView::isEmpty() const {
   assert(data != nullptr || size == 0);
   return size == 0;
-}
-
-bool StringView::isNil() const {
-  assert(data != nullptr || size == 0);
-  return data == nullptr;
 }
 
 const StringView::Object& StringView::operator[](Size index) const {
@@ -144,33 +152,6 @@ bool StringView::operator>=(StringView other) const {
   return !(*this < other);
 }
 
-bool StringView::beginsWith(const Object& object) const {
-  assert(data != nullptr || size == 0);
-  if (size == 0) {
-    return false;
-  }
-
-  return *data == object;
-}
-
-bool StringView::beginsWith(StringView other) const {
-  assert(data != nullptr || size == 0);
-  assert(other.data != nullptr || other.size == 0);
-  if (size >= other.size) {
-    for (Size i = 0;; ++i) {
-      if (i == other.size) {
-        return true;
-      }
-
-      if (!(*(data + i) == *(other.data + i))) {
-        break;
-      }
-    }
-  }
-
-  return false;
-}
-
 bool StringView::contains(const Object& object) const {
   assert(data != nullptr || size == 0);
   for (Size i = 0; i < size; ++i) {
@@ -203,34 +184,6 @@ bool StringView::contains(StringView other) const {
   return false;
 }
 
-bool StringView::endsWith(const Object& object) const {
-  assert(data != nullptr || size == 0);
-  if (size == 0) {
-    return false;
-  }
-
-  return *(data + (size - 1)) == object;
-}
-
-bool StringView::endsWith(StringView other) const {
-  assert(data != nullptr || size == 0);
-  assert(other.data != nullptr || other.size == 0);
-  if (size >= other.size) {
-    Size i = size - other.size;
-    for (Size j = 0;; ++j) {
-      if (j == other.size) {
-        return true;
-      }
-
-      if (!(*(data + i + j) == *(other.data + j))) {
-        break;
-      }
-    }
-  }
-
-  return false;
-}
-
 StringView::Size StringView::find(const Object& object) const {
   assert(data != nullptr || size == 0);
   for (Size i = 0; i < size; ++i) {
@@ -254,38 +207,6 @@ StringView::Size StringView::find(StringView other) const {
         }
 
         if (!(*(data + j + k) == *(other.data + k))) {
-          break;
-        }
-      }
-    }
-  }
-
-  return INVALID;
-}
-
-StringView::Size StringView::findLast(const Object& object) const {
-  assert(data != nullptr || size == 0);
-  for (Size i = 0; i < size; ++i) {
-    if (*(data + (size - 1 - i)) == object) {
-      return size - 1 - i;
-    }
-  }
-
-  return INVALID;
-}
-
-StringView::Size StringView::findLast(StringView other) const {
-  assert(data != nullptr || size == 0);
-  assert(other.data != nullptr || other.size == 0);
-  if (size >= other.size) {
-    Size i = size - other.size;
-    for (Size j = 0; !(i < j); ++j) {
-      for (Size k = 0;; ++k) {
-        if (k == other.size) {
-          return i - j;
-        }
-
-        if (!(*(data + (i - j + k)) == *(other.data + k))) {
           break;
         }
       }
